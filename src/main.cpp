@@ -99,8 +99,14 @@ int main() {
            */
           double dist_inc = 0.5; // how much the points are spaced apart. that is makes it around 50mph.
           for (int i = 0; i<50; i++) { // we are using a constant size of 50 points for a pack planner.
-            next_x_vals.push_back(car_x + (dist_inc*i)*cos(deg2rad(car_yaw)));
-            next_y_vals.push_back(car_y + (dist_inc*i)*sin(deg2rad(car_yaw)));
+            double next_s = car_s+(i+1)*dist_inc;  
+            // we are in th emiddle lane, and the waypoints are measured from the double yellow line in the middle of the road 
+            // So, we are like one and a half lanes from where the waypoints are
+            // lanes are four meters wide
+            double next_d =  6;
+            vector<double> xy = getXY(next_s, next_d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+            next_x_vals.push_back(xy[0]);
+            next_y_vals.push_back(xy[1]);
           }
 
           // END
