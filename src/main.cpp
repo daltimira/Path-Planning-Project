@@ -97,6 +97,13 @@ int main() {
            * TODO: define a path made up of (x,y) points that the car will visit
            *   sequentially every .02 seconds
            */
+          double dist_inc = 0.5; // how much the points are spaced apart. that is makes it around 50mph.
+          for (int i = 0; i<50; i++) { // we are using a constant size of 50 points for a pack planner.
+            next_x_vals.push_back(car_x + (dist_inc*i)*cos(deg2rad(car_yaw)));
+            next_y_vals.push_back(car_y + (dist_inc*i)*sin(deg2rad(car_yaw)));
+          }
+
+          // END
 
 
           msgJson["next_x"] = next_x_vals;
