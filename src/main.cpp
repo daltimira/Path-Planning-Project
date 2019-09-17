@@ -14,6 +14,8 @@ using nlohmann::json;
 using std::string;
 using std::vector;
 
+double ref_vel = 50; // 50 miles/hour 
+
 int main() {
   uWS::Hub h;
 
@@ -51,21 +53,19 @@ int main() {
     map_waypoints_dy.push_back(d_y);
   }
 
+    // start in lane 1
+    int lane = 1;
+    // Have a reference velocity to target
+    double ref_vel = 0; // mph
 
-
-  // Have a reference velocity to target
-  double ref_vel = 49.5; // mph
 
   h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,
-               &map_waypoints_dx,&map_waypoints_dy]
+               &map_waypoints_dx,&map_waypoints_dy, &lane, &ref_vel]
               (uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
     // The 2 signifies a websocket event
-
-    // start in lane 1
-    int lane = 1;
 
     if (length && length > 2 && data[0] == '4' && data[1] == '2') {
 
@@ -107,8 +107,47 @@ int main() {
            *   sequentially every .02 seconds
            */
 
+          // We will work on sensor fusion. The simulator is reporting a list of all the other cars on the road. 
+          // To avoid hitting another car, we should go to the sensor fusion list and see if the car is in our lane or not
+          // To avoid hitting other car, if we detect that the car is too close, we do some action. 
+
+
           // Craete a list of widely spaced (x,y) waypoints, evenly space at 30 m
           // Later we will interpoolate these waypoints with a spline and fill it in with more points that control speed.
+
+          if (prev_size > 0) {
+            car_s = end_path_s;
+          }
+
+          bool too_close = false;
+
+          // find ref_v to use
+          for (int i = 0; i<sensor_fusion.size(); i++) {
+            // car is in my lane
+            float d = sensor_fusion[i][6];
+            if (d<(2+4*lane+2) && d > (2+4*lane-2)) { // range +2, -2, as each lane is four meters. If it is in the center lane, we check is between 4 and 8
+              double vx = sensor_fusion[i][3]; // 'i' car of the road
+              double vy = sensor_fusion[i][4];
+              double check_speed = sqrt(vx*vx+vy*vy); // the speed is important to predict where the car will be in the future
+              double check_car_s = sensor_fusion[i][5];
+
+              // We kind of want to look at what the car will be like in the future. 
+              check_car_s += ((double) prev_size*.02*check_speed); // if using previous points can project s value outwards in time. If we are using our path points, we might be not there yet.
+
+              // we check if our car s is close to this other cars_s
+              if ((check_car_s > car_s) /*if the car is in front of us*/ && ((check_car_s-car_s) < 30) /*the gap is smaller than 30 meters*/) {
+                // we need to do some logic, lower reference velocity so we dont crash into the car in front of use, could also flag to tray to change lanes
+                //ref_vel = 29.5; // mph
+                too_close = true; // we are not setting a velocity, we will incrementing or decrementing velocity, to have a smooth acceleration
+              }
+            }
+          }
+
+          if (too_close) {
+            ref_vel -= .224; // 5m/s^2
+          } else if (ref_vel < 49.5) {
+            ref_vel += .224;
+          }
 
           vector<double> ptsx;
           vector<double> ptsy;  
@@ -203,8 +242,6 @@ int main() {
           double target_dist = sqrt((target_x)*(target_x)+(target_y)*(target_y));
 
           double x_add_on = 0;
-
-          double ref_vel = 30; // 30 miles/hour is aprox 50 km/hour
 
           // Fill up the rest of our path planner after filling it with previous point, here we will always output 50 points
           for (int i = 1; i<= 50-previous_path_x.size(); i++) {
