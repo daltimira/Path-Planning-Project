@@ -1,0 +1,44 @@
+RUBIK PROJECTS:
+1) The car is able to drive at least 4.32 miles without incident.. Incidents include exceeding acceleration/jerk/speed, collision, and driving outside of the lanes. 
+2) The car drives according to the speed limit. The car doesn't drive faster than the speed limit. Also the car isn't driving much slower than speed limit unless obstructed by traffic.
+3) Max Acceleration and Jerk are not Exceeded.The car does not exceed a total acceleration of 10 m/s^2 and a jerk of 10 m/s^3.
+4) Car does not have collisions. The car must not come into contact with any of the other cars on the road.
+5) The car stays in its lane, except for the time between changing lanes. The car doesn't spend more than a 3 second length out side the lane lanes during changing lanes, and every other time the car stays inside one of the 3 lanes on the right hand side of the road.
+6) The car is able to change lanes. The car is able to smoothly change lanes when it makes sense to do so, such as when behind a slower moving car and an adjacent lane is clear of other traffic.
+
+NOTES:
+
+- need to look when we want to change lanes, if there are cars in the lane that we want to change. Using frenet.
+- lane change left.
+- lane change right.
+- keep lane.
+
+- Cost function: cost of being in each lane. 
+- Prediction lesson. Predict in the future. Where all the cars are going to be at different points in the future, and what's your cost going to be for being in different states and different lanes in the future. Gaussian Naive Bayes classifier to decide where you want to be in the future. 
+- Fine state machine.
+- Look at the future and find the best lane to be. 
+
+1) Get data.
+2) Predict where things are going to be in the future. 
+3) Then try and make your own decision in behavior planning. 
+4) Make a trajectory. 
+
+First you might one to just make trajectory, then take into account vehicles, and then take into account the future of the vehicles.
+
+For smoothing trajectories, use prior path points. 
+
+No need to use Hybrid A*. Cost function makes more sense. Parking lot would make more sense to use the Hybrid A*.
+
+Prepare shift lane: adjust velocity based on the car that stays where your next target lane.
+
+FSM: to which maneaouvers yhou want to take.
+
+TODO:
+
+DIVENDRES) Re-write notes of the class of behavioural planning, and note which section/code should be taken into account for the development of this project.
+DISSABTE) Study current code of the project and understand it. 
+3) Design the development in the following steps and develop it:
+DIUMENGE) Design and implement "Trajectory generation". 
+DIUMENGE) Design state machine and cost functions (based on the Rubik criteria). Cost function for being in each lane.
+DILLUNS-DIMARTS-DIMECRES) Implement state machine and cost function take into account current state of the vehicles.
+DIJOUS-DIVENDRES-DISSABTE-DIUMENGE) Incorporate future predictions to cost functions. Gaussian Naive Bayes Classifier to decide where you want to be in the future. 

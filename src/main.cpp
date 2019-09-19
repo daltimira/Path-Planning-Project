@@ -139,6 +139,11 @@ int main() {
                 // we need to do some logic, lower reference velocity so we dont crash into the car in front of use, could also flag to tray to change lanes
                 //ref_vel = 29.5; // mph
                 too_close = true; // we are not setting a velocity, we will incrementing or decrementing velocity, to have a smooth acceleration
+                if (lane > 0)
+                {
+                  lane = 0;
+                }
+
               }
             }
           }
@@ -187,6 +192,7 @@ int main() {
           }
 
           // In Frenet add evenly 30m spaced points ahead of the starting reference
+          // When we change the lanes, we add new waypoints for the 30, 60 and 90 meters with new d.
           vector<double> next_wp0 = getXY(car_s+30,(2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
           vector<double> next_wp1 = getXY(car_s+60,(2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
           vector<double> next_wp2 = getXY(car_s+90,(2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
