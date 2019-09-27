@@ -36,11 +36,14 @@ FSM: to which maneaouvers yhou want to take.
 TODO:
 
 DONE) Re-write notes of the class of behavioural planning, and note which section/code should be taken into account for the development of this project.
-2) Study the ImplementBehaviorPlanner.cpp
-3) Study TrajectoryExercise and cost function for the trajectory generation.
-4) Study current code of the project and understand it. 
+DONE) Study the ImplementBehaviorPlanner.cpp
+DONE) Study TrajectoryExercise and cost function for the trajectory generation.
+DONE) Study current code of the project and understand it. 
 5) Design the development in the following steps and develop it:
-5.1) Design and implement "Trajectory generation". Check at the Jerk Minimizing trajectories code. Think about cost function. 
-5.2) Design state machine and cost functions (based on the Rubik criteria). Cost function for being in each lane.
-5.3) Implement state machine and cost function take into account current state of the vehicles.
-5.4) Incorporate future predictions to cost functions. Gaussian Naive Bayes Classifier to decide where you want to be in the future. 
+5.1) Implement Vehicle and Highway class. Write the methods. Skeleton.
+5.2) Write the skeleton of the update function in the main.cpp.
+5.3) Implement and test the trajectory generations. Keep lane, turn right/left. Check at the Jerk Minimizing trajectories. 
+5.4) Implement and test the different cost functions. Cost function for being in each lane. Check Rubik (jerk cost function, etc.).
+5.5) Implement and test state machine, transition to different states. 
+5.6) Incorporate future predictions to cost functions. Gaussian Naive Bayes Classifier to decide where you want to be in the future. 
+5.7) Test the implementation. 
