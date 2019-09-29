@@ -8,6 +8,7 @@
 #include "helpers.h"
 #include "json.hpp"
 #include "spline.h"
+#include "vehicle.h"
 
 // for convenience
 using nlohmann::json;
@@ -58,7 +59,7 @@ int main() {
     // Have a reference velocity to target
     double ref_vel = 0; // mph
 
-
+  Vehicle a;
   h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,
                &map_waypoints_dx,&map_waypoints_dy, &lane, &ref_vel]
               (uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
@@ -68,7 +69,6 @@ int main() {
     // The 2 signifies a websocket event
 
     if (length && length > 2 && data[0] == '4' && data[1] == '2') {
-
       auto s = hasData(data);
 
       if (s != "") {
@@ -97,6 +97,9 @@ int main() {
           // Sensor Fusion Data, a list of all other cars on the same side 
           //   of the road.
           auto sensor_fusion = j[1]["sensor_fusion"];
+
+          // We retrieve the vehicle information from sensor fusion
+          vector<Vehicle> vehicleInfo = getVehicles(sensor_fusion);
 
           int prev_size = previous_path_x.size();
 

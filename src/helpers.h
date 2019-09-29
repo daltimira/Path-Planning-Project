@@ -4,6 +4,8 @@
 #include <math.h>
 #include <string>
 #include <vector>
+#include "vehicle.h"
+#include <iostream>
 
 // for convenience
 using std::string;
@@ -152,6 +154,33 @@ vector<double> getXY(double s, double d, const vector<double> &maps_s,
   double y = seg_y + d*sin(perp_heading);
 
   return {x,y};
+}
+
+// Transform sensor data from a vector of vehicles 
+vector<Vehicle> getVehicles(const vector<vector<double>> & sensorFusion) {
+  // Sensor fusion data is a 2d vector of cars and then that car's 
+  // [car's unique ID, car's x position in map coordinates, car's y position in map coordinates, car's x velocity in m/s, 
+  // car's y velocity in m/s, car's s position in frenet coordinates, car's d position in frenet coordinates. 
+  vector<Vehicle> vehicles;
+
+  for (int i = 0; i<sensorFusion.size(); i++) {
+    //int id        = sensorFusion[i][0];
+    //double x_map  = sensorFusion[i][1];
+    //double y_map  = sensorFusion[i][2];
+    double vx     = sensorFusion[i][3]; 
+    double vy     = sensorFusion[i][4];
+    double s      = sensorFusion[i][5];
+    float d       = sensorFusion[i][6];
+
+    double v = sqrt(vx*vx+vy*vy);
+    int lane = int(d / 4.0f); // each lane has 4 meters long
+    if (lane>=0 && d<3) {
+      // there are just three lanes, we just take the vehicles whose lane is in the range [0,2] 
+      vehicles.push_back(Vehicle(lane, s, v, 0));
+    }
+  }
+
+  return vehicles;
 }
 
 #endif  // HELPERS_H
