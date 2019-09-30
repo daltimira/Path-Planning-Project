@@ -54,12 +54,11 @@ int main() {
     map_waypoints_dy.push_back(d_y);
   }
 
-    // start in lane 1
-    int lane = 1;
-    // Have a reference velocity to target
-    double ref_vel = 0; // mph
+  // start in lane 1
+  int lane = 1;
+  // Have a reference velocity to target
+  double ref_vel = 0; // mph
 
-  Vehicle a;
   h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,
                &map_waypoints_dx,&map_waypoints_dy, &lane, &ref_vel]
               (uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
@@ -122,34 +121,48 @@ int main() {
             car_s = end_path_s;
           }
 
+          vector<Vehicle> trajectory;
+
           bool too_close = false;
 
+           for (int iVehicle = 0; iVehicle<vehicleInfo.size(); iVehicle++) {
+             if (vehicleInfo[iVehicle].lane == lane) {
+               double check_car_s = vehicleInfo[iVehicle].s + prev_size*.02*vehicleInfo[iVehicle].v;
+               if (check_car_s > car_s && check_car_s-car_s < 30) {
+                 too_close = true;
+                 if (lane > 0) {
+                   lane = 0;
+                 }
+               }
+             }
+           }
+
           // find ref_v to use
-          for (int i = 0; i<sensor_fusion.size(); i++) {
-            // car is in my lane
-            float d = sensor_fusion[i][6];
-            if (d<(2+4*lane+2) && d > (2+4*lane-2)) { // range +2, -2, as each lane is four meters. If it is in the center lane, we check is between 4 and 8
-              double vx = sensor_fusion[i][3]; // 'i' car of the road
-              double vy = sensor_fusion[i][4];
-              double check_speed = sqrt(vx*vx+vy*vy); // the speed is important to predict where the car will be in the future
-              double check_car_s = sensor_fusion[i][5];
+          // for (int i = 0; i<sensor_fusion.size(); i++) {
+          //   // car is in my lane
+          //   float d = sensor_fusion[i][6];
+          //   if (d<(2+4*lane+2) && d > (2+4*lane-2)) { // range +2, -2, as each lane is four meters. If it is in the center lane, we check is between 4 and 8
+          //     double vx = sensor_fusion[i][3]; // 'i' car of the road
+          //     double vy = sensor_fusion[i][4];
+          //     double check_speed = sqrt(vx*vx+vy*vy); // the speed is important to predict where the car will be in the future
+          //     double check_car_s = sensor_fusion[i][5];
 
-              // We kind of want to look at what the car will be like in the future. 
-              check_car_s += ((double) prev_size*.02*check_speed); // if using previous points can project s value outwards in time. If we are using our path points, we might be not there yet.
+          //     // We kind of want to look at what the car will be like in the future. 
+          //     check_car_s += ((double) prev_size*.02*check_speed); // if using previous points can project s value outwards in time. If we are using our path points, we might be not there yet.
 
-              // we check if our car s is close to this other cars_s
-              if ((check_car_s > car_s) /*if the car is in front of us*/ && ((check_car_s-car_s) < 30) /*the gap is smaller than 30 meters*/) {
-                // we need to do some logic, lower reference velocity so we dont crash into the car in front of use, could also flag to tray to change lanes
-                //ref_vel = 29.5; // mph
-                too_close = true; // we are not setting a velocity, we will incrementing or decrementing velocity, to have a smooth acceleration
-                if (lane > 0)
-                {
-                  lane = 0;
-                }
+          //     // we check if our car s is close to this other cars_s
+          //     if ((check_car_s > car_s) /*if the car is in front of us*/ && ((check_car_s-car_s) < 30) /*the gap is smaller than 30 meters*/) {
+          //       // we need to do some logic, lower reference velocity so we dont crash into the car in front of use, could also flag to tray to change lanes
+          //       //ref_vel = 29.5; // mph*/
+          //       too_close = true; // we are not setting a velocity, we will incrementing or decrementing velocity, to have a smooth acceleration
+          //       if (lane > 0)
+          //       {
+          //         lane = 0;
+          //       }
 
-              }
-            }
-          }
+          //     }
+          //   }
+          // }
 
           if (too_close) {
             ref_vel -= .224; // 5m/s^2

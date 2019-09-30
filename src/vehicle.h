@@ -13,7 +13,7 @@ class Vehicle {
 
 public: 
     Vehicle();
-    Vehicle(int lane, float s, float v, float a, string state = "CS");
+    Vehicle(float d, float s, float v, float a, string state = "CS");
     virtual ~Vehicle();
     vector<Vehicle> choose_next_state(map<int, vector<Vehicle>> & predictions);
     vector<string> successor_states();
@@ -30,6 +30,8 @@ public:
     void realize_next_state(vector<Vehicle> &trajectory);
     //void configure(vector<int> &road_data);
     void increment(int dt = 1);
+    int getLane(float d);
+    float getCenterLane(int lane);
 
     // public Vehicle variables
     struct collider{
@@ -44,7 +46,7 @@ public:
 
     int preferred_buffer = 6; // impacts "keep lane" behavior.
 
-    int lane, s, goal_lane, goal_s, lanes_available;
+    int lane, d, s, goal_lane, goal_s, lanes_available;
 
     float v, target_speed, a, max_acceleration;
 

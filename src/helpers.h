@@ -173,10 +173,8 @@ vector<Vehicle> getVehicles(const vector<vector<double>> & sensorFusion) {
     float d       = sensorFusion[i][6];
 
     double v = sqrt(vx*vx+vy*vy);
-    int lane = int(d / 4.0f); // each lane has 4 meters long
-    if (lane>=0 && d<3) {
-      // there are just three lanes, we just take the vehicles whose lane is in the range [0,2] 
-      vehicles.push_back(Vehicle(lane, s, v, 0));
+    if (d>=0 && d<=12) {
+      vehicles.push_back(Vehicle(d, s, v, 0));
     }
   }
 
