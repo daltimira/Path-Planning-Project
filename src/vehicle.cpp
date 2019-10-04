@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 #include <math.h>
+#include "helpers.h"
 //#include "cost.h"
 
 using std::string;
@@ -20,19 +21,20 @@ Vehicle::Vehicle(float d, float s, float v, float a, string state) {
   this->v = v;
   this->a = a;
   this->state = state;
-  max_acceleration = -1;
+  max_acceleration = 5;
 }
 
 Vehicle::~Vehicle() {}
 
 // get the lane of the vehicle given the d coordinate
 int Vehicle::getLane(float d) {
-  return floor(d / 4.0f); // each lane has 4 meters long
+  return (int) (floor(d / 4.0f)); // each lane has 4 meters long
 }
 
 // return the d position of the center lane
 float Vehicle::getCenterLane(int lane) {
-  return lane*4.0 + 2.0;
+  float centerLane = lane*4.0f + 2.0f;
+  return centerLane;
 }
 
 vector<Vehicle> Vehicle::choose_next_state(map<int, vector<Vehicle>> &predictions) {
@@ -114,18 +116,30 @@ vector<Vehicle> Vehicle::generate_trajectory(string state,
 }
 
 vector<float> Vehicle::get_kinematics(map<int, vector<Vehicle>> &predictions, 
-                                      int lane) {
-  // Gets next timestep kinematics (position, velocity, acceleration) 
-  //   for a given lane. Tries to choose the maximum velocity and acceleration, 
-  //   given other vehicle positions and accel/velocity constraints.
-  float max_velocity_accel_limit = this->max_acceleration + this->v;
-  float new_position;
-  float new_velocity;
-  float new_accel;
-  Vehicle vehicle_ahead;
-  Vehicle vehicle_behind;
+                                      int lane, float delta_d) {
 
+// Get the kinematics (position, velocity, acceleration) given the predictions, lane (to measure the speed of the vehicles in that lane),
+// and the delta_d (how
+
+  Vehicle vehicle_ahead;
+  float vAhead = 0;
+  float new_velocity = 1000; // some large number
   if (get_vehicle_ahead(predictions, lane, vehicle_ahead)) {
+    if ((vehicle_ahead.s-this->s) < delta_d) {
+      //printf("Going to the speed of the vehicle in front: %f\n", vehicle_ahead.v);
+      new_velocity = vehicle_ahead.v;
+      vAhead = vehicle_ahead.v;
+    }
+  }
+
+
+float max_velocity_accel_limit = this->max_acceleration + this->v;
+
+  new_velocity = std::min(std::min(new_velocity, 
+                                       max_velocity_accel_limit), 
+                                       this->target_speed);
+
+  /*if (get_vehicle_ahead(predictions, lane, vehicle_ahead)) {
     if (get_vehicle_behind(predictions, lane, vehicle_behind)) {
       // must travel at the speed of traffic, regardless of preferred buffer
       new_velocity = vehicle_ahead.v;
@@ -138,12 +152,14 @@ vector<float> Vehicle::get_kinematics(map<int, vector<Vehicle>> &predictions,
                                        this->target_speed);
     }
   } else {
-    new_velocity = std::min(max_velocity_accel_limit, this->target_speed);
-  }
+    //new_velocity = std::min(max_velocity_accel_limit, this->target_speed);
+  }*/
     
-  new_accel = new_velocity - this->v; // Equation: (v_1 - v_0)/t = acceleration
-  new_position = this->s + new_velocity + new_accel / 2.0;
-    
+  float new_accel = ((new_velocity - this->v)*.224)/5.0; // Equation: (v_1 - v_0)/t = acceleration
+  printf("vehicle ahead: %f, new velocity: %f, current velocity: %f, new accel: %f\n", vAhead, new_velocity, this->v, new_accel);
+  //new_position = this->s + new_velocity + new_accel / 2.0;
+  float new_position = this->s + delta_d;  
+
   return{new_position, new_velocity, new_accel};
 }
 
@@ -157,13 +173,21 @@ vector<Vehicle> Vehicle::constant_speed_trajectory() {
 
 vector<Vehicle> Vehicle::keep_lane_trajectory(map<int, vector<Vehicle>> &predictions) {
   // Generate a keep lane trajectory.
-  vector<Vehicle> trajectory = {Vehicle(getCenterLane(lane), this->s, this->v, this->a, state)};
-  vector<float> kinematics = get_kinematics(predictions, this->lane);
-  float new_s = kinematics[0];
-  float new_v = kinematics[1];
-  float new_a = kinematics[2];
-  trajectory.push_back(Vehicle(getCenterLane(this->lane), new_s, new_v, new_a, "KL"));
-  
+  // vector<Vehicle> trajectory = {Vehicle(getCenterLane(lane), 50, 0, 0, state)};
+  // trajectory.push_back(Vehicle(getCenterLane(this->lane), 100, 0, 0, "KL"));
+
+  // printf("s: %f\n", (float)trajectory[0].s);
+  // printf("s: %f \n", (float) trajectory[1].s);
+  // printf("******\n");
+
+  // get the kinematics (position, velocity, acceleration) of the vehicle at delta_d of 30 and 60 meters
+  vector<float> kinematics = get_kinematics(predictions, lane, 30);
+  vector<Vehicle> trajectory = {Vehicle(getCenterLane(lane), kinematics[0], kinematics[1], kinematics[2], "KL")};
+  kinematics = get_kinematics(predictions, lane, 60);
+  trajectory.push_back(Vehicle(getCenterLane(lane), kinematics[0], kinematics[1], kinematics[2], "KL"));
+//  printf("t1. s: %f, d: %f // t2. s: %f, d: %f\n", this->s, getCenterLane(lane), new_s, getCenterLane(lane));
+
+
   return trajectory;
 }
 
@@ -177,7 +201,7 @@ vector<Vehicle> Vehicle::prep_lane_change_trajectory(string state,
   int new_lane = this->lane + lane_direction[state];
   vector<Vehicle> trajectory = {Vehicle(getCenterLane(this->lane), this->s, this->v, this->a, 
                                         this->state)};
-  vector<float> curr_lane_new_kinematics = get_kinematics(predictions, this->lane);
+  vector<float> curr_lane_new_kinematics = get_kinematics(predictions, this->lane, 30);
 
   if (get_vehicle_behind(predictions, this->lane, vehicle_behind)) {
     // Keep speed of current lane so as not to collide with car behind.
@@ -186,7 +210,7 @@ vector<Vehicle> Vehicle::prep_lane_change_trajectory(string state,
     new_a = curr_lane_new_kinematics[2];    
   } else {
     vector<float> best_kinematics;
-    vector<float> next_lane_new_kinematics = get_kinematics(predictions, new_lane);
+    vector<float> next_lane_new_kinematics = get_kinematics(predictions, new_lane, 30);
     // Choose kinematics with lowest velocity.
     if (next_lane_new_kinematics[1] < curr_lane_new_kinematics[1]) {
       best_kinematics = next_lane_new_kinematics;
@@ -221,7 +245,7 @@ vector<Vehicle> Vehicle::lane_change_trajectory(string state,
   }
   trajectory.push_back(Vehicle(getCenterLane(this->lane), this->s, this->v, this->a, 
                                this->state));
-  vector<float> kinematics = get_kinematics(predictions, new_lane);
+  vector<float> kinematics = get_kinematics(predictions, new_lane,30);
   trajectory.push_back(Vehicle(getCenterLane(new_lane), kinematics[0], kinematics[1], 
                                kinematics[2], state));
   return trajectory;
@@ -260,7 +284,7 @@ bool Vehicle::get_vehicle_ahead(map<int, vector<Vehicle>> &predictions,
                                 int lane, Vehicle &rVehicle) {
   // Returns a true if a vehicle is found ahead of the current vehicle, false 
   //   otherwise. The passed reference rVehicle is updated if a vehicle is found.
-  int min_s = this->goal_s;
+  int min_s = this->s+10000;
   bool found_vehicle = false;
   Vehicle temp_vehicle;
   for (map<int, vector<Vehicle>>::iterator it = predictions.begin(); 

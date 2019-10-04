@@ -28,10 +28,12 @@ int main() {
   vector<double> map_waypoints_dy;
 
   // Waypoint map to read from
-  string map_file_ = "../data/highway_map.csv";
+  //string map_file_ = "../data/highway_map.csv";
+  string map_file_ = "/home/daltimi/Desktop/Self-Driving Cars Projects Module 2/pathplanningproject/data/highway_map.csv";
   // The max s value before wrapping around the track back to 0
   double max_s = 6945.554;
 
+  printf("file to read: %s\n", map_file_.c_str());
   std::ifstream in_map_(map_file_.c_str(), std::ifstream::in);
 
   string line;
@@ -53,6 +55,8 @@ int main() {
     map_waypoints_dx.push_back(d_x);
     map_waypoints_dy.push_back(d_y);
   }
+
+  printf("size: %d\n", map_waypoints_x.size());
 
   // start in lane 1
   int lane = 1;
@@ -98,7 +102,18 @@ int main() {
           auto sensor_fusion = j[1]["sensor_fusion"];
 
           // We retrieve the vehicle information from sensor fusion
-          vector<Vehicle> vehicleInfo = getVehicles(sensor_fusion);
+          // vector<Vehicle> vehicleInfo = getVehicles(sensor_fusion);
+
+          // // Get the predictions of the vehicles
+          // map<int, vector<Vehicle>> predictions;
+          // // For now we just assign an id of the vehicle every time (we do not keep track of the vehicle over time)
+          // // We could however, track the vehicle in every update to observer current behaviour in a larger amount of time
+          // int id = 0;
+          // for (Vehicle vehicle : vehicleInfo) {
+          //     vector<Vehicle> preds = vehicle.generate_predictions(2); // get the predictions of the vehicles for the next 2 seconds
+          //     predictions[id] = preds;
+          //     id++;
+          // }
 
           int prev_size = previous_path_x.size();
 
@@ -119,23 +134,31 @@ int main() {
 
           if (prev_size > 0) {
             car_s = end_path_s;
-          }
+          }       
 
-          vector<Vehicle> trajectory;
 
-          bool too_close = false;
+          // Vehicle currentVehicle = Vehicle(car_d, car_s, car_speed, 0); 
+          // currentVehicle.max_acceleration = 5; // a total acceleration should not go over 10 m/s^2
+          // currentVehicle.target_speed = 48; // this is 50 miles/hour
 
-           for (int iVehicle = 0; iVehicle<vehicleInfo.size(); iVehicle++) {
-             if (vehicleInfo[iVehicle].lane == lane) {
-               double check_car_s = vehicleInfo[iVehicle].s + prev_size*.02*vehicleInfo[iVehicle].v;
-               if (check_car_s > car_s && check_car_s-car_s < 30) {
-                 too_close = true;
-                 if (lane > 0) {
-                   lane = 0;
-                 }
-               }
-             }
-           }
+          // vector<Vehicle> trajectory;
+
+          // bool too_close = false;
+          // bool lane_change = false;
+
+          //  for (int iVehicle = 0; iVehicle<vehicleInfo.size(); iVehicle++) {
+          //    if (vehicleInfo[iVehicle].lane == lane) {
+          //      double check_car_s = vehicleInfo[iVehicle].s + prev_size*.02*vehicleInfo[iVehicle].v;
+          //      if (check_car_s > car_s && check_car_s-car_s < 30) {
+          //        //too_close = true;
+          //        //lane_change = true;
+          //        /*if (lane > 0) {
+          //          lane = 0;
+                   
+          //        }*/
+          //      }
+          //    }
+          //  }
 
           // find ref_v to use
           // for (int i = 0; i<sensor_fusion.size(); i++) {
@@ -164,11 +187,68 @@ int main() {
           //   }
           // }
 
-          if (too_close) {
+
+          bool car_ahead = false;
+          bool car_left = false;
+          bool car_right = false;
+
+          for (int i = 0; i<sensor_fusion.size(); i++) {
+            // car is in my lane
+            float d = sensor_fusion[i][6];
+            int check_car_lane = -1;
+            double check_car_s = sensor_fusion[i][5];
+            double vx = sensor_fusion[i][3]; // 'i' car of the road
+            double vy = sensor_fusion[i][4];
+            double check_speed = sqrt(vx*vx+vy*vy); // the speed is important to predict where the car will be in the future
+            check_car_s += ((double) prev_size*.02*check_speed); // if using previous points can project s value outwards in time. If we are using our path points, we might be not there yet.
+
+            if (d>0 && d<4){
+              check_car_lane = 0;
+            } else if (d>4 && d<8) {
+              check_car_lane = 1;
+            } else if (d>8 && d<12) {
+              check_car_lane = 2;
+            }
+
+            if (check_car_lane == lane) {
+              car_ahead |= check_car_s > car_s && (check_car_s - car_s) < 30;
+            } else if ((check_car_lane-lane) == -1) {
+              car_left |= (car_s+30) > check_car_s  && (car_s-30) < check_car_s;
+            } else if ((check_car_lane-lane) == 1) {
+              car_right |= (car_s+30) > check_car_s  && (car_s-30) < check_car_s;
+            }
+
+          }
+
+          if (car_ahead) {
+              if(!car_left && lane > 0) {
+                  lane--;
+              } else if(!car_right && lane !=2) {
+                  lane++;
+              } else if(!car_left && lane !=2) {
+                  lane++;
+              }else {
+                  ref_vel -= .224;
+              }
+
+            } else if (ref_vel <  49.5) {
+                ref_vel += 0.224;
+            }
+
+
+          // vector<Vehicle> trajectory2 = currentVehicle.keep_lane_trajectory(predictions);
+
+          // float acceleration = trajectory2[0].a;
+
+          // //printf("acceleration %f\n", acceleration);
+          
+          // ref_vel += acceleration;
+
+          /*if (too_close) {
             ref_vel -= .224; // 5m/s^2
           } else if (ref_vel < 49.5) {
             ref_vel += .224;
-          }
+          }*/
 
           vector<double> ptsx;
           vector<double> ptsy;  
@@ -209,9 +289,22 @@ int main() {
 
           // In Frenet add evenly 30m spaced points ahead of the starting reference
           // When we change the lanes, we add new waypoints for the 30, 60 and 90 meters with new d.
-          vector<double> next_wp0 = getXY(car_s+30,(2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
-          vector<double> next_wp1 = getXY(car_s+60,(2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
-          vector<double> next_wp2 = getXY(car_s+90,(2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+           vector<double> next_wp0 = getXY(car_s+30,(2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+           vector<double> next_wp1 = getXY(car_s+60,(2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+           vector<double> next_wp2 = getXY(car_s+90,(2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+      
+
+       /* printf("lane: %d, s: %f, d: %d vs s: %f, d: %f\n", lane, car_s, (2+4*lane), (float)trajectory2[0].s, (float)trajectory2[0].d);
+        printf("s: %f, d: %f vs s: %f, d: %f\n", car_s+30, (2+4*lane), (float)trajectory2[1].s, (float)trajectory2[1].d);
+        printf("******\n");*/
+        //vector<double> next_wp0 = getXY(car_s+30,(2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+        //vector<double> next_wp1 = getXY(car_s+60,(2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+        // vector<double> next_wp0 = getXY(trajectory2[0].s,trajectory2[0].d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+        // vector<double> next_wp1 = getXY(trajectory2[1].s,trajectory2[1].d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+       //   vector<double> next_wp0 = getXY(car_s+30,(2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+         // vector<double> next_wp1 = getXY(car_s+60,(2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+        //vector<double> next_wp2 = getXY(car_s+90,(2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+
 
           ptsx.push_back(next_wp0[0]);
           ptsx.push_back(next_wp1[0]);

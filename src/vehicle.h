@@ -18,7 +18,7 @@ public:
     vector<Vehicle> choose_next_state(map<int, vector<Vehicle>> & predictions);
     vector<string> successor_states();
     vector<Vehicle> generate_trajectory(string state, map<int, vector<Vehicle>> & predictions);
-    vector<float> get_kinematics(map<int, vector<Vehicle>> & predictions, int lane);
+    vector<float> get_kinematics(map<int, vector<Vehicle>> & predictions, int lane, float delta_d);
     vector<Vehicle> constant_speed_trajectory();
     vector<Vehicle> keep_lane_trajectory(map<int, vector<Vehicle>> & predictions);
     vector<Vehicle> lane_change_trajectory(string state, map<int, vector<Vehicle>> & predictions);
@@ -46,9 +46,10 @@ public:
 
     int preferred_buffer = 6; // impacts "keep lane" behavior.
 
-    int lane, d, s, goal_lane, goal_s, lanes_available;
+    int lane, lanes_available;
+    float d, s, goal_s;
 
-    float v, target_speed, a, max_acceleration;
+    float x, y, v, target_speed, a, max_acceleration;
 
     string state;
 

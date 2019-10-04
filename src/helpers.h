@@ -4,13 +4,18 @@
 #include <math.h>
 #include <string>
 #include <vector>
-#include "vehicle.h"
 #include <iostream>
+#include "vehicle.h"
+
+
+//using Eigen::MatrixXd;
+//using Eigen::VectorXd;
 
 // for convenience
 using std::string;
 using std::vector;
 
+namespace {
 // Checks if the SocketIO event has JSON data.
 // If there is data the JSON object in string format will be returned,
 //   else the empty string "" will be returned.
@@ -165,8 +170,8 @@ vector<Vehicle> getVehicles(const vector<vector<double>> & sensorFusion) {
 
   for (int i = 0; i<sensorFusion.size(); i++) {
     //int id        = sensorFusion[i][0];
-    //double x_map  = sensorFusion[i][1];
-    //double y_map  = sensorFusion[i][2];
+    //float x_map  = sensorFusion[i][1];
+    //float y_map  = sensorFusion[i][2];
     double vx     = sensorFusion[i][3]; 
     double vy     = sensorFusion[i][4];
     double s      = sensorFusion[i][5];
@@ -174,11 +179,58 @@ vector<Vehicle> getVehicles(const vector<vector<double>> & sensorFusion) {
 
     double v = sqrt(vx*vx+vy*vy);
     if (d>=0 && d<=12) {
-      vehicles.push_back(Vehicle(d, s, v, 0));
+      vehicles.push_back(Vehicle(d, s, v, 0)); // for now we do not keep track of the prior positions and velocities, so acceleration is zero.
     }
   }
 
   return vehicles;
+}
+
+vector<double> JMT(vector<double> &start, vector<double> &end, double T) {
+  /**
+   * Calculate the Jerk Minimizing Trajectory that connects the initial state
+   * to the final state in time T.
+   *
+   * @param start - the vehicles start location given as a length three array
+   *   corresponding to initial values of [s, s_dot, s_double_dot]
+   * @param end - the desired end state for vehicle. Like "start" this is a
+   *   length three array.
+   * @param T - The duration, in seconds, over which this maneuver should occur.
+   *
+   * @output an array of length 6, each value corresponding to a coefficent in
+   *   the polynomial:
+   *   s(t) = a_0 + a_1 * t + a_2 * t**2 + a_3 * t**3 + a_4 * t**4 + a_5 * t**5
+   *
+   * EXAMPLE
+   *   > JMT([0, 10, 0], [10, 10, 0], 1)
+   *     [0.0, 10.0, 0.0, 0.0, 0.0, 0.0]
+   */
+  /*MatrixXd A = MatrixXd(3, 3);
+  A << T*T*T, T*T*T*T, T*T*T*T*T,
+       3*T*T, 4*T*T*T,5*T*T*T*T,
+       6*T, 12*T*T, 20*T*T*T;*/
+
+  //MatrixXd Ai = A.Eigen3::inverse();
+
+  /*MatrixXd B = MatrixXd(3,1);
+  B << end[0]-(start[0]+start[1]*T+.5*start[2]*T*T),
+       end[1]-(start[1]+start[2]*T),
+       end[2]-start[2];
+
+  MatrixXd Ai = A.inverse();
+
+  MatrixXd C = Ai*B;
+
+  vector <double> result = {start[0], start[1], .5*start[2]};
+
+  for(int i = 0; i < C.size(); ++i) {
+    result.push_back(C.data()[i]);
+  }
+
+  return result;*/
+
+  return vector <double> ();
+}
 }
 
 #endif  // HELPERS_H
