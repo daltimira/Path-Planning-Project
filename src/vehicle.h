@@ -15,6 +15,8 @@ public:
     Vehicle();
     Vehicle(float d, float s, float v, float a, string state = "CS");
     virtual ~Vehicle();
+    float get_velocity(map<int, vector<Vehicle>> & predictions, int lane);
+    void set_velocity(float v);
     vector<Vehicle> choose_next_state(map<int, vector<Vehicle>> & predictions);
     vector<string> successor_states();
     vector<Vehicle> generate_trajectory(string state, map<int, vector<Vehicle>> & predictions);

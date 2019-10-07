@@ -102,18 +102,18 @@ int main() {
           auto sensor_fusion = j[1]["sensor_fusion"];
 
           // We retrieve the vehicle information from sensor fusion
-          // vector<Vehicle> vehicleInfo = getVehicles(sensor_fusion);
+          vector<Vehicle> vehicleInfo = getVehicles(sensor_fusion);
 
-          // // Get the predictions of the vehicles
-          // map<int, vector<Vehicle>> predictions;
-          // // For now we just assign an id of the vehicle every time (we do not keep track of the vehicle over time)
-          // // We could however, track the vehicle in every update to observer current behaviour in a larger amount of time
-          // int id = 0;
-          // for (Vehicle vehicle : vehicleInfo) {
-          //     vector<Vehicle> preds = vehicle.generate_predictions(2); // get the predictions of the vehicles for the next 2 seconds
-          //     predictions[id] = preds;
-          //     id++;
-          // }
+          // Get the predictions of the vehicles
+          map<int, vector<Vehicle>> predictions;
+          // For now we just assign an id of the vehicle every time (we do not keep track of the vehicle over time)
+          // We could however, track the vehicle in every update to observer current behaviour in a larger amount of time
+          int id = 0;
+          for (Vehicle vehicle : vehicleInfo) {
+              vector<Vehicle> preds = vehicle.generate_predictions(4); // get the predictions of the vehicles for the next 2 seconds
+              predictions[id] = preds;
+              id++;
+          }
 
           int prev_size = previous_path_x.size();
 
@@ -137,9 +137,9 @@ int main() {
           }       
 
 
-          // Vehicle currentVehicle = Vehicle(car_d, car_s, car_speed, 0); 
-          // currentVehicle.max_acceleration = 5; // a total acceleration should not go over 10 m/s^2
-          // currentVehicle.target_speed = 48; // this is 50 miles/hour
+          Vehicle currentVehicle = Vehicle(car_d, car_s, ref_vel, 0); 
+          currentVehicle.max_acceleration = 0.224; // a total acceleration should not go over 5 m/s^2
+          currentVehicle.target_speed = 48; // this is 50 miles/hour
 
           // vector<Vehicle> trajectory;
 
@@ -202,25 +202,48 @@ int main() {
             double check_speed = sqrt(vx*vx+vy*vy); // the speed is important to predict where the car will be in the future
             check_car_s += ((double) prev_size*.02*check_speed); // if using previous points can project s value outwards in time. If we are using our path points, we might be not there yet.
 
-            if (d>0 && d<4){
+            if (d>=0 && d<=4){
               check_car_lane = 0;
-            } else if (d>4 && d<8) {
+            } else if (d>=4 && d<=8) {
               check_car_lane = 1;
-            } else if (d>8 && d<12) {
+            } else if (d>=8 && d<=12) {
               check_car_lane = 2;
             }
 
             if (check_car_lane == lane) {
+              //printf("ahead: sme: %f, sother: %f, diff: %f\n", car_s, check_car_s, check_car_s- car_s);
               car_ahead |= check_car_s > car_s && (check_car_s - car_s) < 30;
             } else if ((check_car_lane-lane) == -1) {
-              car_left |= (car_s+30) > check_car_s  && (car_s-30) < check_car_s;
+              car_left |= fabs(check_car_s-car_s) < 30;//(car_s+40) > check_car_s  && (car_s-40) < check_car_s;
             } else if ((check_car_lane-lane) == 1) {
-              car_right |= (car_s+30) > check_car_s  && (car_s-30) < check_car_s;
+              car_right |= fabs(check_car_s-car_s) < 30;//(car_s+40) > check_car_s  && (car_s-40) < check_car_s;
             }
 
           }
 
-          if (car_ahead) {
+          //printf("%d, %d, %d\n", car_left, car_ahead, car_right);
+
+          int newLane = choose_next_lane(car_s, lane, 50, sensor_fusion);
+          float newSpeed =  speed_lane(car_s, lane, 50, sensor_fusion);
+
+          if (fabs(car_d-6)<0.5 || fabs(car_d-8)<0.5 || fabs(car_d-10) <0.5)
+          {
+            lane = newLane;
+          }
+
+          printf("lane: %d\n", lane);
+
+          if (newSpeed > ref_vel) {
+            ref_vel += 0.224;
+          } else {
+            if (newSpeed < ref_vel) {
+              ref_vel -= 0.224;
+            }
+          }
+
+          //printf("new lane: %d, new speed: %f\n", newLane, newSpeed );
+
+          /*if (car_ahead) {
               if(!car_left && lane > 0) {
                   lane--;
               } else if(!car_right && lane !=2) {
@@ -233,7 +256,12 @@ int main() {
 
             } else if (ref_vel <  49.5) {
                 ref_vel += 0.224;
-            }
+            }*/
+
+            //float velocity = currentVehicle.get_velocity(predictions, lane);
+            //currentVehicle.set_velocity(velocity);
+            //ref_vel = currentVehicle.v;
+  
 
 
           // vector<Vehicle> trajectory2 = currentVehicle.keep_lane_trajectory(predictions);

@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 #include <iostream>
+#include <functional>
 #include "vehicle.h"
 
 
@@ -14,6 +15,9 @@
 // for convenience
 using std::string;
 using std::vector;
+
+const float EFFICIENCY = 0.3;
+const float OBSTACLE = 0.7;
 
 namespace {
 // Checks if the SocketIO event has JSON data.
@@ -184,6 +188,122 @@ vector<Vehicle> getVehicles(const vector<vector<double>> & sensorFusion) {
   }
 
   return vehicles;
+}
+
+float speed_lane(double car_s, int lane, float max_speed, const vector<vector<double>> & sensorFusion)
+{
+	float speed = max_speed;
+	// check the speed of the current lane based on other vehicles and speed limit
+	for (int i = 0; i<sensorFusion.size(); i++) {
+		double vx     = sensorFusion[i][3]; 
+		double vy     = sensorFusion[i][4];
+		double check_car_s      = sensorFusion[i][5];
+		float check_car_d       = sensorFusion[i][6];
+		double v = sqrt(vx*vx+vy*vy);
+
+		int car_lane = -1;
+		if (check_car_d>0 && check_car_d<4){
+	      car_lane = 0;
+	    } else if (check_car_d>4 && check_car_d<8) {
+	      car_lane = 1;
+	    } else if (check_car_d>8 && check_car_d<12) {
+	      car_lane = 2;
+	    }
+
+	    if (car_lane == lane &&  (car_s+30>check_car_s) && (car_s-10<check_car_s) && speed>v ) {
+	    	// if there are vehicles in this lane between 10 meters behind and 30 meters ahead, we adjust the speed to the lowest speed of these vehicles
+	    	speed = v;
+	    }
+
+  }
+  return speed;
+}
+
+float inefficiency_cost(double car_s, int lane, float max_speed, const vector<vector<double>> & sensorFusion) {
+	// cost becomes higher for lanes whose speed have traffic slower than the max_speed
+	float currentSpeedLane = speed_lane(car_s, lane, max_speed, sensorFusion);
+  //printf("current speed lane %d: %f", lane, currentSpeedLane);
+	float cost = (2.0*max_speed - currentSpeedLane)/max_speed;
+
+  	return cost;
+}
+
+float obstacles_cost(double car_s, int lane, float max_speed, const vector<vector<double>> & sensorFusion) {
+  bool obstacle = false;
+
+  for (int i = 0; i<sensorFusion.size(); i++) {
+    // car is in my lane
+    float d = sensorFusion[i][6];
+    int check_car_lane = -1;
+    double check_car_s = sensorFusion[i][5];
+    double vx = sensorFusion[i][3]; // 'i' car of the road
+    double vy = sensorFusion[i][4];
+    double check_speed = sqrt(vx*vx+vy*vy); // the speed is important to predict where the car will be in the future
+    //check_car_s += ((double) prev_size*.02*check_speed); // if using previous points can project s value outwards in time. If we are using our path points, we might be not there yet.
+
+    if (d>=0 && d<=4){
+      check_car_lane = 0;
+    } else if (d>=4 && d<=8) {
+      check_car_lane = 1;
+    } else if (d>=8 && d<=12) {
+      check_car_lane = 2;
+    }
+
+    if (check_car_lane == lane && check_car_s < (car_s+40) && (check_car_s  > (car_s-40))) {
+      return 1.0f;
+    } 
+  }
+ return 0.0f;
+}
+
+
+float calculate_cost(double car_s, int lane, float max_speed, const vector<vector<double>> & sensorFusion) {
+	float cost = 0.0;
+	vector<std::function<float(double, int, float, const vector<vector<double>> &) >> cf_list = {inefficiency_cost, obstacles_cost};
+	vector<float> weight_list = {EFFICIENCY, OBSTACLE};
+	for (int i = 0; i < cf_list.size(); ++i) {
+	    float new_cost = weight_list[i]*cf_list[i](car_s, lane, max_speed, sensorFusion);
+	    cost += new_cost;
+	  }
+
+	  return cost;
+}
+
+std::vector<int> successor_states(int lane, int num_lanes) {
+	std::vector<int> lanes;
+	lanes.push_back(lane);
+	if (lane>0) {
+		lanes.push_back(lane-1);
+	}
+	if (lane<num_lanes-1) {
+		lanes.push_back(lane+1);
+	}
+	return lanes;
+}
+
+// this is the transition function, where we move from one state to another (change lanes)
+int choose_next_lane(double car_s, int lane, float max_speed, const vector<vector<double>> & sensorFusion) {
+	std::vector<int> possible_successor_lanes = successor_states(lane, 3); // give as a parameter current lanes and the number of lanes of the highway
+	std::vector<float> costs(possible_successor_lanes.size());
+	 for (int iLane = 0; iLane<possible_successor_lanes.size(); iLane++) {
+        //vector<Vehicle> trajectory_for_state = generate_trajectory(possible_successor_lanes[iLane], sensorFusion);
+        double cost_for_state = 0;
+        costs[iLane] = calculate_cost(car_s, iLane, max_speed, sensorFusion);
+        printf(" %f, ", costs[iLane]);
+    }
+    printf("\n");
+    int bestLane = lane;
+    float min_cost = 100000000;
+     
+    for (int iLane = 0; iLane<possible_successor_lanes.size(); iLane++) {
+        int tmp_lane =  possible_successor_lanes[iLane];
+        float cost = costs[iLane];
+        if (cost < min_cost || (cost == min_cost && iLane == lane)) {
+            min_cost = cost;
+            bestLane = tmp_lane;
+        }
+    }
+    return bestLane;
 }
 
 vector<double> JMT(vector<double> &start, vector<double> &end, double T) {

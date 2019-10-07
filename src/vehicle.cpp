@@ -115,6 +115,36 @@ vector<Vehicle> Vehicle::generate_trajectory(string state,
   return trajectory;
 }
 
+float Vehicle::get_velocity(map<int, vector<Vehicle>> & predictions, int lane) {
+  // get velocity of the given lane. We try to get the maximum velocity for that given lane given the maximum acceleration, 
+  // vehicles ahead in the 
+  Vehicle vehicle_ahead;
+  float velocity_ahead = 10000; // some large number
+  float s_ahead = 100000;
+  if (get_vehicle_ahead(predictions, lane, vehicle_ahead)) {
+    if (((vehicle_ahead.s-this->s) < 25) && s_ahead > vehicle_ahead.s) {
+      printf("Going to the speed of the vehicle in front: %f\n", vehicle_ahead.v);
+      velocity_ahead = vehicle_ahead.v;
+      s_ahead = vehicle_ahead.s;
+    }
+  }
+
+  if (velocity_ahead < this->v) {
+    velocity_ahead = this->v - this->max_acceleration;
+  }
+  float max_velocity_accel_limit = this->max_acceleration + this->v;
+
+  float new_velocity = std::min(std::min(velocity_ahead, 
+                                       max_velocity_accel_limit), 
+                                       this->target_speed);
+
+  return new_velocity;
+}
+
+void Vehicle::set_velocity(float v) {
+  this->v = v;
+}
+
 vector<float> Vehicle::get_kinematics(map<int, vector<Vehicle>> &predictions, 
                                       int lane, float delta_d) {
 
