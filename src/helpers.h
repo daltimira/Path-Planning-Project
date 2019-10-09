@@ -6,7 +6,6 @@
 #include <vector>
 #include <iostream>
 #include <functional>
-#include "vehicle.h"
 
 
 //using Eigen::MatrixXd;
@@ -16,8 +15,10 @@
 using std::string;
 using std::vector;
 
-const float EFFICIENCY = 0.3;
-const float OBSTACLE = 0.7;
+const float EFFICIENCY = 0.1;
+const float OBSTACLE = 1.0;
+const float DIFF_SPEED = 0.2;
+const float SAFE_DISTANCE = 40;
 
 namespace {
 // Checks if the SocketIO event has JSON data.
@@ -51,7 +52,7 @@ double distance(double x1, double y1, double x2, double y2) {
 }
 
 // Calculate closest waypoint to current x, y position
-int ClosestWaypoint(double x, double y, const vector<double> &maps_x, 
+int ClosestWaypoint(double x, double y, const vector<double> &maps_x,
                     const vector<double> &maps_y) {
   double closestLen = 100000; //large number
   int closestWaypoint = 0;
@@ -70,7 +71,7 @@ int ClosestWaypoint(double x, double y, const vector<double> &maps_x,
 }
 
 // Returns next waypoint of the closest waypoint
-int NextWaypoint(double x, double y, double theta, const vector<double> &maps_x, 
+int NextWaypoint(double x, double y, double theta, const vector<double> &maps_x,
                  const vector<double> &maps_y) {
   int closestWaypoint = ClosestWaypoint(x,y,maps_x,maps_y);
 
@@ -93,8 +94,8 @@ int NextWaypoint(double x, double y, double theta, const vector<double> &maps_x,
 }
 
 // Transform from Cartesian x,y coordinates to Frenet s,d coordinates
-vector<double> getFrenet(double x, double y, double theta, 
-                         const vector<double> &maps_x, 
+vector<double> getFrenet(double x, double y, double theta,
+                         const vector<double> &maps_x,
                          const vector<double> &maps_y) {
   int next_wp = NextWaypoint(x,y, theta, maps_x,maps_y);
 
@@ -138,8 +139,8 @@ vector<double> getFrenet(double x, double y, double theta,
 }
 
 // Transform from Frenet s,d coordinates to Cartesian x,y
-vector<double> getXY(double s, double d, const vector<double> &maps_s, 
-                     const vector<double> &maps_x, 
+vector<double> getXY(double s, double d, const vector<double> &maps_s,
+                     const vector<double> &maps_x,
                      const vector<double> &maps_y) {
   int prev_wp = -1;
 
@@ -165,37 +166,12 @@ vector<double> getXY(double s, double d, const vector<double> &maps_s,
   return {x,y};
 }
 
-// Transform sensor data from a vector of vehicles 
-vector<Vehicle> getVehicles(const vector<vector<double>> & sensorFusion) {
-  // Sensor fusion data is a 2d vector of cars and then that car's 
-  // [car's unique ID, car's x position in map coordinates, car's y position in map coordinates, car's x velocity in m/s, 
-  // car's y velocity in m/s, car's s position in frenet coordinates, car's d position in frenet coordinates. 
-  vector<Vehicle> vehicles;
-
-  for (int i = 0; i<sensorFusion.size(); i++) {
-    //int id        = sensorFusion[i][0];
-    //float x_map  = sensorFusion[i][1];
-    //float y_map  = sensorFusion[i][2];
-    double vx     = sensorFusion[i][3]; 
-    double vy     = sensorFusion[i][4];
-    double s      = sensorFusion[i][5];
-    float d       = sensorFusion[i][6];
-
-    double v = sqrt(vx*vx+vy*vy);
-    if (d>=0 && d<=12) {
-      vehicles.push_back(Vehicle(d, s, v, 0)); // for now we do not keep track of the prior positions and velocities, so acceleration is zero.
-    }
-  }
-
-  return vehicles;
-}
-
 float speed_lane(double car_s, int lane, float max_speed, const vector<vector<double>> & sensorFusion)
 {
 	float speed = max_speed;
 	// check the speed of the current lane based on other vehicles and speed limit
 	for (int i = 0; i<sensorFusion.size(); i++) {
-		double vx     = sensorFusion[i][3]; 
+		double vx     = sensorFusion[i][3];
 		double vy     = sensorFusion[i][4];
 		double check_car_s      = sensorFusion[i][5];
 		float check_car_d       = sensorFusion[i][6];
@@ -210,26 +186,41 @@ float speed_lane(double car_s, int lane, float max_speed, const vector<vector<do
 	      car_lane = 2;
 	    }
 
-	    if (car_lane == lane &&  (car_s+30>check_car_s) && (car_s-10<check_car_s) && speed>v ) {
-	    	// if there are vehicles in this lane between 10 meters behind and 30 meters ahead, we adjust the speed to the lowest speed of these vehicles
+	    if (car_lane == lane &&  ((car_s+20)>check_car_s) && (car_s<check_car_s) && speed>v ) {
+	    	// we take the minimum speed of all vehicles that are ahead of our vehicle, within the safe distance
 	    	speed = v;
 	    }
-
   }
   return speed;
 }
 
-float inefficiency_cost(double car_s, int lane, float max_speed, const vector<vector<double>> & sensorFusion) {
-	// cost becomes higher for lanes whose speed have traffic slower than the max_speed
-	float currentSpeedLane = speed_lane(car_s, lane, max_speed, sensorFusion);
-  //printf("current speed lane %d: %f", lane, currentSpeedLane);
-	float cost = (2.0*max_speed - currentSpeedLane)/max_speed;
+// float inefficiency_cost(double car_s, double car_v, int lane, float max_speed, int prev_size, const vector<vector<double>> & sensorFusion) {
+// 	// cost becomes higher for lanes whose speed have traffic slower than the max_speed
+// 	float currentSpeedLane = speed_lane(car_s, lane, max_speed, sensorFusion);
+//   //printf("current speed lane %d: %f", lane, currentSpeedLane);
+// 	float cost = (2.0*max_speed - currentSpeedLane)/max_speed;
 
-  	return cost;
-}
+//   return cost;
+// }
 
-float obstacles_cost(double car_s, int lane, float max_speed, const vector<vector<double>> & sensorFusion) {
+// float diffspeed_cost(double car_s, double car_v, int lane, float max_speed, int prev_size, const vector<vector<double>> & sensorFusion) {
+// 	// cost becomes higher for lanes whose different speed with current car is larger
+// 	float currentSpeedLane = speed_lane(car_s, lane, max_speed, sensorFusion);
+//   //printf("current speed lane %d: %f", lane, currentSpeedLane);
+// 	float cost = (2.0*car_v - currentSpeedLane)/max_speed;
+
+//   return cost;
+// }
+
+float obstacles_cost(double car_s, int car_lane, double car_v, int lane, float max_speed, int prev_size, const vector<vector<double>> & sensorFusion) {
   bool obstacle = false;
+
+  bool look_vehicle_ahead = car_lane == lane; // if we are evaluating the cost of the lane where is located our vehicle
+  bool look_vehicle_next_lane =  abs(car_lane - lane) == 1; // if we are evaluating the cost of the lane next to where our vehicle is located
+
+  if (!look_vehicle_ahead && !look_vehicle_next_lane) {
+    return 1.0f;
+  }
 
   for (int i = 0; i<sensorFusion.size(); i++) {
     // car is in my lane
@@ -239,7 +230,7 @@ float obstacles_cost(double car_s, int lane, float max_speed, const vector<vecto
     double vx = sensorFusion[i][3]; // 'i' car of the road
     double vy = sensorFusion[i][4];
     double check_speed = sqrt(vx*vx+vy*vy); // the speed is important to predict where the car will be in the future
-    //check_car_s += ((double) prev_size*.02*check_speed); // if using previous points can project s value outwards in time. If we are using our path points, we might be not there yet.
+    check_car_s += ((double) prev_size*.02*check_speed); // if using previous points can project s value outwards in time. If we are using our path points, we might be not there yet.
 
     if (d>=0 && d<=4){
       check_car_lane = 0;
@@ -249,20 +240,30 @@ float obstacles_cost(double car_s, int lane, float max_speed, const vector<vecto
       check_car_lane = 2;
     }
 
-    if (check_car_lane == lane && check_car_s < (car_s+40) && (check_car_s  > (car_s-40))) {
-      return 1.0f;
-    } 
+    if (check_car_lane == lane) {
+      if (look_vehicle_ahead) {
+        // we check for vehicles that are in the same lane
+        if (check_car_s > car_s && (check_car_s-car_s) < SAFE_DISTANCE) {
+          return 1.0f; // car in front is too close, so cost 1
+        }
+      } else {
+        if (car_s < (check_car_s + SAFE_DISTANCE) && car_s > (check_car_s - SAFE_DISTANCE)) {
+          return 1.0f;
+        }
+      }
+    }
   }
+
  return 0.0f;
 }
 
 
-float calculate_cost(double car_s, int lane, float max_speed, const vector<vector<double>> & sensorFusion) {
+float calculate_cost(double car_s, int car_lane, double car_v, int lane, float max_speed, int prev_size, const vector<vector<double>> & sensorFusion) {
 	float cost = 0.0;
-	vector<std::function<float(double, int, float, const vector<vector<double>> &) >> cf_list = {inefficiency_cost, obstacles_cost};
-	vector<float> weight_list = {EFFICIENCY, OBSTACLE};
+	vector<std::function<float(double, int, double, int, float, int, const vector<vector<double>> &) >> cf_list = {/*inefficiency_cost,*/ obstacles_cost/*, diffspeed_cost*/};
+	vector<float> weight_list = {/*EFFICIENCY,*/ OBSTACLE /*, DIFF_SPEED*/};
 	for (int i = 0; i < cf_list.size(); ++i) {
-	    float new_cost = weight_list[i]*cf_list[i](car_s, lane, max_speed, sensorFusion);
+	    float new_cost = weight_list[i]*cf_list[i](car_s, car_lane, car_v, lane, max_speed, prev_size, sensorFusion);
 	    cost += new_cost;
 	  }
 
@@ -271,10 +272,10 @@ float calculate_cost(double car_s, int lane, float max_speed, const vector<vecto
 
 std::vector<int> successor_states(int lane, int num_lanes) {
 	std::vector<int> lanes;
-	lanes.push_back(lane);
 	if (lane>0) {
 		lanes.push_back(lane-1);
 	}
+  lanes.push_back(lane);
 	if (lane<num_lanes-1) {
 		lanes.push_back(lane+1);
 	}
@@ -282,25 +283,34 @@ std::vector<int> successor_states(int lane, int num_lanes) {
 }
 
 // this is the transition function, where we move from one state to another (change lanes)
-int choose_next_lane(double car_s, int lane, float max_speed, const vector<vector<double>> & sensorFusion) {
-	std::vector<int> possible_successor_lanes = successor_states(lane, 3); // give as a parameter current lanes and the number of lanes of the highway
-	std::vector<float> costs(possible_successor_lanes.size());
+int choose_next_lane(double car_s, double car_v,  int lane, float max_speed, int prev_size, const vector<vector<double>> & sensorFusion) {
+  int numLanes = 3;
+	std::vector<int> possible_successor_lanes = successor_states(lane, numLanes); // give as a parameter current lanes and the number of lanes of the highway
+	std::vector<float> costs(numLanes);
+
+  for (int iLane = 0; iLane < numLanes; iLane++) {
+    costs[iLane] = 1000.0f; // init with large cost. The successor states (lanes) will overwrite this cost
+  }
+
 	 for (int iLane = 0; iLane<possible_successor_lanes.size(); iLane++) {
         //vector<Vehicle> trajectory_for_state = generate_trajectory(possible_successor_lanes[iLane], sensorFusion);
         double cost_for_state = 0;
-        costs[iLane] = calculate_cost(car_s, iLane, max_speed, sensorFusion);
-        printf(" %f, ", costs[iLane]);
+        costs[possible_successor_lanes[iLane]] = calculate_cost(car_s, lane, car_v, possible_successor_lanes[iLane], max_speed, prev_size, sensorFusion);
+    }
+
+    for (int iLane = 0; iLane < numLanes; iLane++) {
+      printf(" %f, ", costs[iLane]);
     }
     printf("\n");
     int bestLane = lane;
-    float min_cost = 100000000;
-     
-    for (int iLane = 0; iLane<possible_successor_lanes.size(); iLane++) {
-        int tmp_lane =  possible_successor_lanes[iLane];
+    float min_cost = costs[bestLane];
+
+    for (int iLane = 0; iLane<numLanes; iLane++) {
+        //int tmp_lane =  possible_successor_lanes[iLane];
         float cost = costs[iLane];
-        if (cost < min_cost || (cost == min_cost && iLane == lane)) {
+        if (cost < min_cost) {
             min_cost = cost;
-            bestLane = tmp_lane;
+            bestLane = iLane;
         }
     }
     return bestLane;
