@@ -27,8 +27,8 @@ int main() {
   vector<double> map_waypoints_dy;
 
   // Waypoint map to read from
-  //string map_file_ = "../data/highway_map.csv";
   string map_file_ = "/home/daltimi/Desktop/Self-Driving Cars Projects Module 2/pathplanningproject/data/highway_map.csv";
+  //string map_file_ = "/home/daltimi/Desktop/Self-Driving Cars Projects Module 2/pathplanningproject/data/highway_map.csv";
   // The max s value before wrapping around the track back to 0
   double max_s = 6945.554;
 
@@ -60,10 +60,10 @@ int main() {
   // Have a reference velocity to target
   double ref_vel = 0; // mph
 
-  double d_change = 0; // when we change lanes, we prevent to change another lane until we arrive our destination
+  double s_change = 0; // when we change lanes, we prevent to change another lane until we arrive our destination
 
   h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,
-               &map_waypoints_dx,&map_waypoints_dy, &lane, &ref_vel, &d_change]
+               &map_waypoints_dx,&map_waypoints_dy, &lane, &ref_vel, &s_change]
               (uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
@@ -108,8 +108,13 @@ int main() {
             car_s = end_path_s;
           }       
 
-          lane = choose_next_lane(car_s, car_speed, lane, 49.5, prev_size, sensor_fusion);
-          float newSpeed =  speed_lane(car_s, lane, 49.5, sensor_fusion);
+          int new_lane = choose_next_lane(car_s, car_speed, lane, 49.5, prev_size, sensor_fusion);
+          float newSpeed =  speed_lane(car_s, lane, 49.5, prev_size, sensor_fusion);
+          
+          if (new_lane != lane && car_s > s_change) {
+          	s_change = car_s + 60;
+            lane = new_lane;
+          }
 
           if (newSpeed > ref_vel) {
             ref_vel += 0.224;

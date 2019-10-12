@@ -18,7 +18,10 @@ using std::vector;
 const float EFFICIENCY = 0.1;
 const float OBSTACLE = 1.0;
 const float DIFF_SPEED = 0.2;
-const float SAFE_DISTANCE = 40;
+const float SAFE_DISTANCE_MAX = 40;
+const float SAFE_DISTANCE_MIN = 20;
+const float VELOCITY_DISTANCE_CHECK = 40; 
+const float VELOCITY_DIFF = 5;
 
 namespace {
 // Checks if the SocketIO event has JSON data.
@@ -166,7 +169,7 @@ vector<double> getXY(double s, double d, const vector<double> &maps_s,
   return {x,y};
 }
 
-float speed_lane(double car_s, int lane, float max_speed, const vector<vector<double>> & sensorFusion)
+float speed_lane(double car_s, int lane, float max_speed, int prev_size, const vector<vector<double>> & sensorFusion)
 {
 	float speed = max_speed;
 	// check the speed of the current lane based on other vehicles and speed limit
@@ -175,7 +178,8 @@ float speed_lane(double car_s, int lane, float max_speed, const vector<vector<do
 		double vy     = sensorFusion[i][4];
 		double check_car_s      = sensorFusion[i][5];
 		float check_car_d       = sensorFusion[i][6];
-		double v = sqrt(vx*vx+vy*vy);
+		double check_speed = sqrt(vx*vx+vy*vy);
+    check_car_s += ((double) prev_size*.02*check_speed); 
 
 		int car_lane = -1;
 		if (check_car_d>0 && check_car_d<4){
@@ -186,9 +190,10 @@ float speed_lane(double car_s, int lane, float max_speed, const vector<vector<do
 	      car_lane = 2;
 	    }
 
-	    if (car_lane == lane &&  ((car_s+20)>check_car_s) && (car_s<check_car_s) && speed>v ) {
+	    if (car_lane == lane &&  ((car_s+VELOCITY_DISTANCE_CHECK)>check_car_s) && (car_s<check_car_s) && speed>check_speed ) {
 	    	// we take the minimum speed of all vehicles that are ahead of our vehicle, within the safe distance
-	    	speed = v;
+	    	speed = check_speed;
+        printf("speed: %f", check_speed);
 	    }
   }
   return speed;
@@ -239,15 +244,18 @@ float obstacles_cost(double car_s, int car_lane, double car_v, int lane, float m
     } else if (d>=8 && d<=12) {
       check_car_lane = 2;
     }
+    
+    double SAFE_DISTANCE_BEHIND = car_v > (check_speed+VELOCITY_DIFF) ? SAFE_DISTANCE_MIN : SAFE_DISTANCE_MAX; // if our car goes faster, we have shorter safe distance
+    double SAFE_DISTANCE_AHEAD = car_v < (check_speed-VELOCITY_DIFF) ? SAFE_DISTANCE_MIN : SAFE_DISTANCE_MAX;
 
     if (check_car_lane == lane) {
       if (look_vehicle_ahead) {
         // we check for vehicles that are in the same lane
-        if (check_car_s > car_s && (check_car_s-car_s) < SAFE_DISTANCE) {
+        if (check_car_s > car_s && (check_car_s-car_s) < SAFE_DISTANCE_AHEAD) {
           return 1.0f; // car in front is too close, so cost 1
         }
       } else {
-        if (car_s < (check_car_s + SAFE_DISTANCE) && car_s > (check_car_s - SAFE_DISTANCE)) {
+        if (car_s < (check_car_s + SAFE_DISTANCE_AHEAD) && car_s > (check_car_s - SAFE_DISTANCE_BEHIND)) {
           return 1.0f;
         }
       }
@@ -314,52 +322,6 @@ int choose_next_lane(double car_s, double car_v,  int lane, float max_speed, int
         }
     }
     return bestLane;
-}
-
-vector<double> JMT(vector<double> &start, vector<double> &end, double T) {
-  /**
-   * Calculate the Jerk Minimizing Trajectory that connects the initial state
-   * to the final state in time T.
-   *
-   * @param start - the vehicles start location given as a length three array
-   *   corresponding to initial values of [s, s_dot, s_double_dot]
-   * @param end - the desired end state for vehicle. Like "start" this is a
-   *   length three array.
-   * @param T - The duration, in seconds, over which this maneuver should occur.
-   *
-   * @output an array of length 6, each value corresponding to a coefficent in
-   *   the polynomial:
-   *   s(t) = a_0 + a_1 * t + a_2 * t**2 + a_3 * t**3 + a_4 * t**4 + a_5 * t**5
-   *
-   * EXAMPLE
-   *   > JMT([0, 10, 0], [10, 10, 0], 1)
-   *     [0.0, 10.0, 0.0, 0.0, 0.0, 0.0]
-   */
-  /*MatrixXd A = MatrixXd(3, 3);
-  A << T*T*T, T*T*T*T, T*T*T*T*T,
-       3*T*T, 4*T*T*T,5*T*T*T*T,
-       6*T, 12*T*T, 20*T*T*T;*/
-
-  //MatrixXd Ai = A.Eigen3::inverse();
-
-  /*MatrixXd B = MatrixXd(3,1);
-  B << end[0]-(start[0]+start[1]*T+.5*start[2]*T*T),
-       end[1]-(start[1]+start[2]*T),
-       end[2]-start[2];
-
-  MatrixXd Ai = A.inverse();
-
-  MatrixXd C = Ai*B;
-
-  vector <double> result = {start[0], start[1], .5*start[2]};
-
-  for(int i = 0; i < C.size(); ++i) {
-    result.push_back(C.data()[i]);
-  }
-
-  return result;*/
-
-  return vector <double> ();
 }
 }
 
