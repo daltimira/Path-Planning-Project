@@ -15,13 +15,16 @@
 using std::string;
 using std::vector;
 
-const float EFFICIENCY = 0.1;
-const float OBSTACLE = 1.0;
-const float DIFF_SPEED = 0.2;
-const float SAFE_DISTANCE_MAX = 40;
-const float SAFE_DISTANCE_MIN = 20;
+const float OBSTACLE = 1.0; // weight for the obstacle cost function
+// depending on the speed of the vehicles we have different safe distance values
+// for example, if the vehicle ahead is running with a higher velocity than our vehicle, safe distance is set to a lower value
+const float SAFE_DISTANCE_MAX = 40; 
+const float SAFE_DISTANCE_MIN = 20;  
+// to calculate the velocity of a lane it is checked the velocity of the vehicles within a certain distance of our car
 const float VELOCITY_DISTANCE_CHECK = 40; 
-const float VELOCITY_DIFF = 5;
+// in order to calcualte which safe distance to use (max or min), it is compared the speed of our vehicle vs the speed of the other vehicles.
+// The VELOCITY_TOLERANCE is used to add a velocity tolerance to determine if the vehicle is running with a higher speed or lower speed than other vehicles.
+const float VELOCITY_TOLERANCE = 5;
 
 namespace {
 // Checks if the SocketIO event has JSON data.
@@ -191,9 +194,9 @@ float speed_lane(double car_s, int lane, float max_speed, int prev_size, const v
 	    }
 
 	    if (car_lane == lane &&  ((car_s+VELOCITY_DISTANCE_CHECK)>check_car_s) && (car_s<check_car_s) && speed>check_speed ) {
-	    	// we take the minimum speed of all vehicles that are ahead of our vehicle, within the safe distance
+	    	// we take the minimum speed of all vehicles that are ahead of our vehicle, within the velocity distance check
 	    	speed = check_speed;
-        printf("speed: %f", check_speed);
+        //printf("speed: %f", check_speed);
 	    }
   }
   return speed;
@@ -245,8 +248,8 @@ float obstacles_cost(double car_s, int car_lane, double car_v, int lane, float m
       check_car_lane = 2;
     }
     
-    double SAFE_DISTANCE_BEHIND = car_v > (check_speed+VELOCITY_DIFF) ? SAFE_DISTANCE_MIN : SAFE_DISTANCE_MAX; // if our car goes faster, we have shorter safe distance
-    double SAFE_DISTANCE_AHEAD = car_v < (check_speed-VELOCITY_DIFF) ? SAFE_DISTANCE_MIN : SAFE_DISTANCE_MAX;
+    double SAFE_DISTANCE_BEHIND = car_v > (check_speed+VELOCITY_TOLERANCE) ? SAFE_DISTANCE_MIN : SAFE_DISTANCE_MAX; // if our car goes faster, we have shorter safe distance
+    double SAFE_DISTANCE_AHEAD = car_v < (check_speed-VELOCITY_TOLERANCE) ? SAFE_DISTANCE_MIN : SAFE_DISTANCE_MAX;
 
     if (check_car_lane == lane) {
       if (look_vehicle_ahead) {
@@ -301,20 +304,18 @@ int choose_next_lane(double car_s, double car_v,  int lane, float max_speed, int
   }
 
 	 for (int iLane = 0; iLane<possible_successor_lanes.size(); iLane++) {
-        //vector<Vehicle> trajectory_for_state = generate_trajectory(possible_successor_lanes[iLane], sensorFusion);
         double cost_for_state = 0;
         costs[possible_successor_lanes[iLane]] = calculate_cost(car_s, lane, car_v, possible_successor_lanes[iLane], max_speed, prev_size, sensorFusion);
     }
 
-    for (int iLane = 0; iLane < numLanes; iLane++) {
+   /* for (int iLane = 0; iLane < numLanes; iLane++) {
       printf(" %f, ", costs[iLane]);
     }
-    printf("\n");
+    printf("\n");*/
     int bestLane = lane;
     float min_cost = costs[bestLane];
 
     for (int iLane = 0; iLane<numLanes; iLane++) {
-        //int tmp_lane =  possible_successor_lanes[iLane];
         float cost = costs[iLane];
         if (cost < min_cost) {
             min_cost = cost;

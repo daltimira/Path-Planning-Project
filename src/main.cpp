@@ -14,8 +14,6 @@ using nlohmann::json;
 using std::string;
 using std::vector;
 
-double ref_vel = 50; // 50 miles/hour 
-
 int main() {
   uWS::Hub h;
 
@@ -27,12 +25,10 @@ int main() {
   vector<double> map_waypoints_dy;
 
   // Waypoint map to read from
-  string map_file_ = "/home/daltimi/Desktop/Self-Driving Cars Projects Module 2/pathplanningproject/data/highway_map.csv";
-  //string map_file_ = "/home/daltimi/Desktop/Self-Driving Cars Projects Module 2/pathplanningproject/data/highway_map.csv";
+  string map_file_ = "../data/highway_map.csv";
   // The max s value before wrapping around the track back to 0
   double max_s = 6945.554;
 
-  printf("file to read: %s\n", map_file_.c_str());
   std::ifstream in_map_(map_file_.c_str(), std::ifstream::in);
 
   string line;
@@ -55,12 +51,11 @@ int main() {
     map_waypoints_dy.push_back(d_y);
   }
 
-  // start in lane 1
-  int lane = 1;
-  // Have a reference velocity to target
+  int lane = 1;       // start in lane 1
   double ref_vel = 0; // mph
-
-  double s_change = 0; // when we change lanes, we prevent to change another lane until we arrive our destination
+  // when we change lanes, we prevent to change another lane until we arrive our destination from the trajectory started
+  // so s_change is going to be used to prevent any trajectory change until the vehicle has moved a certain distance from the start of the trajectory
+  double s_change = 0; 
 
   h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,
                &map_waypoints_dx,&map_waypoints_dy, &lane, &ref_vel, &s_change]
@@ -112,10 +107,11 @@ int main() {
           float newSpeed =  speed_lane(car_s, lane, 49.5, prev_size, sensor_fusion);
           
           if (new_lane != lane && car_s > s_change) {
-          	s_change = car_s + 60;
+          	s_change = car_s + 60; // after changing lanes, the car will not do any further lane change until has moved at least 60m.
             lane = new_lane;
           }
 
+          // The speed of the car is going to be changed smoothly
           if (newSpeed > ref_vel) {
             ref_vel += 0.224;
           } else {
@@ -162,7 +158,7 @@ int main() {
           }
 
           // In Frenet add evenly 30m spaced points ahead of the starting reference
-          // When we change the lanes, we add new waypoints for the 30, 60 and 90 meters with new d.
+          // When we change the lanes, we add new waypoints for the 30, 60 and 90 meters with new lane.
           vector<double> next_wp0 = getXY(car_s+30,(2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
           vector<double> next_wp1 = getXY(car_s+60,(2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
           vector<double> next_wp2 = getXY(car_s+90,(2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
@@ -195,10 +191,10 @@ int main() {
           vector<double> next_x_vals;
           vector<double> next_y_vals;
 
-          // Start with all tof the previous path points from last time 
+          // Start with all of the previous path points from last time 
           // Instead of recreating the path from scracth every single time, just add points onto it and work with what is still had left from last time
           // If in one iteration we have 50 points, but in the following iteration, the car only have gone through 3 of the points of the planned points,
-          // then we are reusing 47 of the last points, and generate 3 points more. 
+          // then we are reusing 47 of the last points, and generate 3 additional points. 
           for (int i = 0; i<previous_path_x.size(); i++) {
             next_x_vals.push_back(previous_path_x[i]);
             next_y_vals.push_back(previous_path_y[i]);
@@ -230,7 +226,7 @@ int main() {
             double x_ref = x_point;
             double y_ref = y_point;
 
-            // rotate back to normal after rotating it earlier. Go back to the global coordinates. 
+            // rotate back to normal as the point was rotated earlier. Go back to the global coordinates. 
             x_point = (x_ref*cos(ref_yaw)-y_ref*sin(ref_yaw));
             y_point = (x_ref*sin(ref_yaw)+y_ref*cos(ref_yaw));
 
@@ -240,22 +236,6 @@ int main() {
             next_x_vals.push_back(x_point);
             next_y_vals.push_back(y_point);
           }
-
-
-          /*double dist_inc = 0.5; // how much the points are spaced apart. that is makes it around 50mph.
-          for (int i = 0; i<50; i++) { // we are using a constant size of 50 points for a pack planner.
-            double next_s = car_s+(i+1)*dist_inc;  
-            // we are in th emiddle lane, and the waypoints are measured from the double yellow line in the middle of the road 
-            // So, we are like one and a half lanes from where the waypoints are
-            // lanes are four meters wide
-            double next_d =  6;
-            vector<double> xy = getXY(next_s, next_d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
-            next_x_vals.push_back(xy[0]);
-            next_y_vals.push_back(xy[1]);
-          }*/
-
-          // END
-
 
           msgJson["next_x"] = next_x_vals;
           msgJson["next_y"] = next_y_vals;
