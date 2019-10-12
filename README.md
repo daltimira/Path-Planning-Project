@@ -143,3 +143,41 @@ still be compilable with cmake and make./
 ## How to write a README
 A well written README file can enhance your project and portfolio.  Develop your abilities to create professional README files by completing [this free course](https://www.udacity.com/course/writing-readmes--ud777).
 
+## Solution
+
+At every cycle we need to know the state of our car (lane, velocity and acceleration) and the state of the other vehicles (and their future state) in order to plan our next state, which basically will consist in defining the change of velocity and whether or not we need to change lanes. Finally, based on determining future state, we need to generate the corresponding trajectory.
+
+So, the solution has three steps/areas to deal with: (1) prediction, (2) behavioral planning, and (3) trajectory generation. 
+
+
+### Prediction 
+
+For the prediction we predict future state of other vehicles so that we can use this information to plan our behaviour in order to run as fast as possible and to prevent any collision with other cars. 
+
+The prediction information of other cars will determine the value of the cost function "obstacle_cost". Each lane is assigned a cost value, and our behaviour is determined by this (see next section 'Behavioral planning'). 
+
+There are different areas where the prediction of other car's states influence the outcome of the solution:
+
+- SAFE_DISTANCE_BEHIND/SAFE_DISTANCE_AHEAD: This is the distance behind of our vehicle and ahead of our vehicle where we look for other vehicles to determine the feasibility of chaning lanes. We do not want to change lanes if there is a vehicle within a certain distance of the target lane as this could cause a collision. The safe distance is also used to check if we have a vehicle ahead of us, which then we might need to look of there is another lane where there is no vehicles so that we can run faster. The value of the safe distance also changes depending on the speed of our vehicle and the speed of the other vehicle. For example, if a vehicle that is ahead of us is running faster than us, we set a lower safe distance. Similarly, when we try to change lanes, if we are running faster than a vehicle in the target lane that is behind us, we lower the safe distance. This is to make our car run faster. 
+
+In the prediction state we also evaluate the speed lane. We look at the cars running within a certain distance from our car and we set the speed lane to the velocity of the lowest car running within a certain distance of our car.
+
+### Behavioral planning 
+
+We basically have three states: keep lane, change lane (right or left). To determine next state, we assign a cost value to each lane. Then we pick the lane that has a lowest cost. Then we move to that lane (or stay at our current lane if this is the one having the lowest cost). 
+
+With the current implementation there is only one cost function, which assigns a cost value of each state (lane) based on the obstacles (vehicles) that are within this lane and within a certain distance of our car. Also, we set a very high cost for the lanes that are beyond next lane (e.g. if we are in lane 0, changing to lane 2 is considered impossible, so give a very high cost to lane 2).
+
+In case the cost of our current state (lane) is the same of the cost of other states, we always give priority to stay in our current state.
+
+Once the next lane is determined, we check the speed of that lane and we adjust the speed of our vehicle to the speed of this target lane. 
+
+### Trajectory generation
+
+We generate a trajectory based on the result of the behavioral planning. 
+
+To generate a trajectory we took two prior points from our prior generated path (to ensure smooth transition) and three other points at 30, 60 and 90 meters ahead of us at the target lane determined by behavioral planning. 
+
+We fit the polynomial with a spline and using the five points.
+
+The spacing between points is determined based on the velocity of the car and the fact that the simulator visit each point every 0.02 seconds.
